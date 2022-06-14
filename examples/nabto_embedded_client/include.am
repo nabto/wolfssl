@@ -1,0 +1,13 @@
+# vim:ft=automake
+# All paths should be given relative to the root
+
+if BUILD_EXAMPLE_CLIENTS
+noinst_PROGRAMS += examples/nabto_embedded_client/nabto_embedded_client
+noinst_HEADERS += examples/nabto_embedded_client/nabto_embedded_client.h
+examples_nabto_embedded_client_nabto_embedded_client_SOURCES      = examples/nabto_embedded_client/nabto_embedded_client.c
+examples_nabto_embedded_client_nabto_embedded_client_LDADD        = src/libwolfssl.la $(LIB_STATIC_ADD) $(WOLFSENTRY_LIB)
+examples_nabto_embedded_client_nabto_embedded_client_DEPENDENCIES = src/libwolfssl.la
+examples_nabto_embedded_client_nabto_embedded_client_CFLAGS = $(WOLFSENTRY_INCLUDE) $(AM_CFLAGS)
+endif
+dist_example_DATA+= examples/nabto_embedded_client/nabto_embedded_client.c
+DISTCLEANFILES+= examples/nabto_embedded_client/.libs/client
