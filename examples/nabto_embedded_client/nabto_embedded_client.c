@@ -6,6 +6,8 @@
 #include <wolfssl/test.h>
 #include <wolfssl/error-ssl.h>
 
+#if defined(HAVE_ALPN)
+
 const char* ip = "127.0.0.1";
 uint16_t port = 22222;
 
@@ -31,7 +33,7 @@ void client_test()
     const char *ourCert = cliEccCertFile;
     const char *ourKey = cliEccKeyFile;
     const char* caCert = caEccCertFile;
-    WOLFSSL_METHOD *method = wolfDTLSv1_2_client_method();
+    WOLFSSL_METHOD *method = wolfTLSv1_2_client_method();
     WOLFSSL_CTX *ctx = wolfSSL_CTX_new(method);
 
 
@@ -98,6 +100,7 @@ void client_test()
 
     close(fd);
     shutdown(fd, SHUT_RDWR);
+    printf("test done\n");
 
 }
 
@@ -118,3 +121,9 @@ int main()
     wolfSSL_Cleanup();
     FreeTcpReady(&ready);
 }
+
+#else
+int main() {
+    printf("missing required configuration options\n");
+}
+#endif

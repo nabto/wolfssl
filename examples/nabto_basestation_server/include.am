@@ -1,0 +1,16 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+if BUILD_EXAMPLE_SERVERS
+noinst_PROGRAMS += examples/nabto_basestation_server/nabto_basestation_server
+noinst_HEADERS += examples/nabto_basestation_server/nabto_basestation_server.h
+examples_nabto_basestation_server_nabto_basestation_server_SOURCES      = examples/nabto_basestation_server/nabto_basestation_server.c
+examples_nabto_basestation_server_nabto_basestation_server_LDADD        = src/libwolfssl.la $(LIB_STATIC_ADD) $(WOLFSENTRY_LIB)
+examples_nabto_basestation_server_nabto_basestation_server_DEPENDENCIES = src/libwolfssl.la
+examples_nabto_basestation_server_nabto_basestation_server_CFLAGS = $(WOLFSENTRY_INCLUDE) $(AM_CFLAGS)
+endif
+
+dist_example_DATA+= examples/nabto_basestation_server/nabto_basestation_server.c
+DISTCLEANFILES+= examples/nabto_basestation_server/.libs/nabto_basestation_server
