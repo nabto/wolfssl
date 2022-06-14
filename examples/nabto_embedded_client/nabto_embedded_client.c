@@ -28,7 +28,7 @@ void logging_callback(const int logLevel, const char* const logMessage) {
 void client_test()
 {
     wolfSSL_SetLoggingCb(logging_callback);
-    //wolfSSL_Debugging_ON();
+    wolfSSL_Debugging_ON();
 
     const char *ourCert = cliEccCertFile;
     const char *ourKey = cliEccKeyFile;
@@ -47,18 +47,17 @@ void client_test()
         print_error("cannot load ca certificate");
     }
 
-    if (wolfSSL_CTX_use_PrivateKey_file(ctx, ourKey, WOLFSSL_FILETYPE_PEM) != WOLFSSL_SUCCESS) {
+    WOLFSSL* ssl = wolfSSL_new(ctx);
+
+    if (wolfSSL_use_PrivateKey_file(ssl, ourKey, WOLFSSL_FILETYPE_PEM) != WOLFSSL_SUCCESS) {
         print_error("could not set private_key");
     }
 
-    int ec = wolfSSL_CTX_use_certificate_chain_file(ctx, ourCert);
+    int ec = wolfSSL_use_certificate_file(ssl, ourCert, WOLFSSL_FILETYPE_PEM);
     if (ec != WOLFSSL_SUCCESS)
     {
         print_error("can't load client cert file, check file and run from wolfSSL home dir");
     }
-
-
-    WOLFSSL* ssl = wolfSSL_new(ctx);
 
     const char* alpnList = "n5";
 

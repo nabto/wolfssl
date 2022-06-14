@@ -9,7 +9,7 @@
 
 #include <stdarg.h>
 
-#if defined(HAVE_ALPN)
+#if defined(HAVE_ALPN) && defined(KEEP_PEER_CERT)
 
 static uint16_t port = 22222;
 
@@ -31,6 +31,12 @@ static void logging_callback(const int logLevel, const char* const logMessage) {
     printf("%d: %s\n", logLevel, logMessage);
 }
 
+static int verify_callback(int foo, WOLFSSL_X509_STORE_CTX* chain)
+{
+    (void)foo;
+    (void)chain;
+    return WOLFSSL_SUCCESS;
+}
 
 static void server_test()
 {
@@ -102,6 +108,7 @@ static void server_test()
         print_error("cannot load private key");
     }
 
+    wolfSSL_CTX_set_verify(ctx, (SSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), verify_callback);
 
     WOLFSSL* ssl = wolfSSL_new(ctx);
 
@@ -114,6 +121,13 @@ static void server_test()
     wolfSSL_set_fd(ssl, fd);
 
     wolfSSL_accept(ssl);
+
+    // Get client fingerprint
+    WOLFSSL_X509* peerCert = wolfSSL_get_peer_certificate(ssl);
+    if (peerCert == NULL) {
+        print_error("could not get peer cert");
+    }
+
 
     uint8_t buffer[42];
 
