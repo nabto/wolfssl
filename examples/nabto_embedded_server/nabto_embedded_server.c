@@ -76,12 +76,7 @@ static void server_test()
         print_error_fmt("accept failed %d", errno);
     }
 
-
-
     //const char *verifyCert = cliEccCertFile;
-    const char *ourCert = eccCertFile;
-    const char *ourKey = eccKeyFile;
-    const char* caCert = caEccCertFile;
     WOLFSSL_METHOD *method = 0;
     method = wolfTLSv1_2_server_method();
     WOLFSSL_CTX *ctx = wolfSSL_CTX_new(method);
@@ -93,22 +88,64 @@ static void server_test()
         print_error("server can't set custom cipher list");
     }
 
-    if (wolfSSL_CTX_load_verify_locations(ctx, caCert, NULL) != WOLFSSL_SUCCESS) {
-        print_error("cannot load ca certificate");
-    }
-
-
-    if (wolfSSL_CTX_use_certificate_chain_file(ctx, ourCert) != WOLFSSL_SUCCESS)
-    {
-        print_error("can't load server cert file, check file and run from wolfSSL home dir");
-    }
-
-    if (wolfSSL_CTX_use_PrivateKey_file(ctx, ourKey, WOLFSSL_FILETYPE_PEM) != WOLFSSL_SUCCESS)
-    {
-        print_error("cannot load private key");
-    }
-
     wolfSSL_CTX_set_verify(ctx, (SSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), verify_callback);
+
+
+
+    // Create a selfsigned certificate, this can be moved somewhere else. The
+    // end result is that the embedded dtls client uses a self signed certificate.
+    uint8_t derCert[512];
+
+    Cert cert;
+    wc_InitCert(&cert);
+
+    strncpy(cert.subject.country, "DK", CTC_NAME_SIZE);
+    strncpy(cert.subject.commonName, "nabto", CTC_NAME_SIZE);
+
+    WC_RNG rng;
+    if (wc_InitRng(&rng) != 0)
+    {
+        print_error("failed to init rng");
+    }
+
+    ecc_key eccKey;
+    if (wc_ecc_init(&eccKey) != 0)
+    {
+        print_error("failed to init ecc key");
+    }
+
+    if (wc_ecc_make_key(&rng, 32, &eccKey) != 0)
+    {
+        print_error("failed to make ecc key");
+    }
+
+    int ret = wc_MakeCert(&cert, derCert, sizeof(derCert), NULL, &eccKey, &rng);
+    if (ret < 0)
+    {
+        print_error("Could not create certificate request");
+    }
+
+    int certLen = wc_SignCert(cert.bodySz, cert.sigType,
+                              derCert, sizeof(derCert), NULL, &eccKey, &rng);
+
+    uint8_t eccKeyDer[512];
+    int len = wc_EccKeyToDer(&eccKey, eccKeyDer, sizeof(eccKeyDer));
+    if (len < 0)
+    {
+        print_error("could not encode private key as der.");
+    }
+
+    if (wolfSSL_CTX_use_PrivateKey_buffer(ctx, eccKeyDer, len, SSL_FILETYPE_ASN1) != WOLFSSL_SUCCESS)
+    {
+        print_error("could not set privatekey from der format");
+    }
+
+    ec = wolfSSL_CTX_use_certificate_buffer(ctx, derCert, certLen, WOLFSSL_FILETYPE_ASN1);
+    if (ec != WOLFSSL_SUCCESS)
+    {
+        print_error("could not use cert from buffer");
+    }
+
 
     WOLFSSL* ssl = wolfSSL_new(ctx);
 
@@ -131,12 +168,12 @@ static void server_test()
 
     uint8_t buffer[42];
 
-    int len = wolfSSL_read(ssl, buffer, sizeof(buffer));
-    if(len < 0) {
+    int readLen = wolfSSL_read(ssl, buffer, sizeof(buffer));
+    if(readLen < 0) {
         print_error("read from connectedion failed.");
     }
-    int written = wolfSSL_write(ssl, buffer, len);
-    if (written != len) {
+    int written = wolfSSL_write(ssl, buffer, readLen);
+    if (written != readLen) {
         print_error("failed to write the right amount of bytes to the ssl connection");
     }
 
@@ -148,7 +185,6 @@ static void server_test()
 int main()
 {
     wolfSSL_Init();
-    ChangeToWolfRoot();
     server_test();
     wolfSSL_Cleanup();
 }

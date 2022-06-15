@@ -5,25 +5,41 @@
 #include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/test.h>
 #include <wolfssl/error-ssl.h>
-#include <wolfssl/wolfcrypt/asn_public.h>
+
+#include <stdarg.h>
 
 #if defined(HAVE_ALPN)
 
-const char *ip = "127.0.0.1";
+const char* ip = "127.0.0.1";
 uint16_t port = 22222;
 
-static void print_error(const char *msg)
+static void print_error(const char *format, ...)
 {
-    printf("%s\n", msg);
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    printf("\n");
     exit(1);
 }
 
 void client_test(void);
-void logging_callback(const int logLevel, const char *const logMessage);
+void logging_callback(const int logLevel, const char* const logMessage);
 
-void logging_callback(const int logLevel, const char *const logMessage)
-{
+void logging_callback(const int logLevel, const char* const logMessage) {
     printf("%d: %s\n", logLevel, logMessage);
+}
+
+static void* cbData = (void*)42;
+
+static int verify_callback(int foo, WOLFSSL_X509_STORE_CTX* chain)
+{
+    (void)foo;
+    (void)chain;
+    if (chain->userCtx != cbData) {
+        print_error("");
+    }
+    return WOLFSSL_SUCCESS;
 }
 
 void client_test()
@@ -31,9 +47,9 @@ void client_test()
     wolfSSL_SetLoggingCb(logging_callback);
     wolfSSL_Debugging_ON();
 
-    const char *caCert = caEccCertFile;
     WOLFSSL_METHOD *method = wolfTLSv1_2_client_method();
     WOLFSSL_CTX *ctx = wolfSSL_CTX_new(method);
+
 
     const char *cipherList = "TLS_ECDHE_ECDSA_WITH_AES_128_CCM";
     if (wolfSSL_CTX_set_cipher_list(ctx, cipherList) != WOLFSSL_SUCCESS)
@@ -41,13 +57,11 @@ void client_test()
         print_error("server can't set custom cipher list");
     }
 
-    // Load ca such that we can verify the basestation.
-    if (wolfSSL_CTX_load_verify_locations(ctx, caCert, NULL) != WOLFSSL_SUCCESS)
-    {
-        print_error("cannot load ca certificate");
-    }
+    wolfSSL_CTX_set_verify(ctx, (SSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), verify_callback);
 
-    WOLFSSL *ssl = wolfSSL_new(ctx);
+    WOLFSSL* ssl = wolfSSL_new(ctx);
+
+    wolfSSL_SetCertCbCtx(ssl, cbData);
 
     // Create a selfsigned certificate, this can be moved somewhere else. The
     // end result is that the embedded dtls client uses a self signed certificate.
@@ -103,10 +117,11 @@ void client_test()
         print_error("could not use cert from buffer");
     }
 
-    const char *alpnList = "n5";
 
-    if (wolfSSL_UseALPN(ssl, (char *)(alpnList), strlen(alpnList), WOLFSSL_ALPN_FAILED_ON_MISMATCH) != WOLFSSL_SUCCESS)
-    {
+
+    const char* alpnList = "n5";
+
+    if (wolfSSL_UseALPN(ssl, (char*)(alpnList), strlen(alpnList), WOLFSSL_ALPN_FAILED_ON_MISMATCH) != WOLFSSL_SUCCESS) {
         print_error("cannot set alpns");
     }
 
@@ -119,50 +134,46 @@ void client_test()
     sa.sin_addr.s_addr = inet_addr(ip);
     sa.sin_port = htons(port);
 
-    if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
-    {
+    if (connect(fd, (struct sockaddr*)&sa, sizeof(sa)) != 0) {
         print_error("connect failed");
     }
 
-    if (wolfSSL_set_fd(ssl, fd) != WOLFSSL_SUCCESS)
-    {
+    if (wolfSSL_set_fd(ssl, fd) != WOLFSSL_SUCCESS) {
         print_error("failed to set fd");
     }
 
-    if (wolfSSL_connect(ssl) != WOLFSSL_SUCCESS)
-    {
-        print_error("connect failed");
+    ec = wolfSSL_connect(ssl);
+    if (ec != WOLFSSL_SUCCESS) {
+        int err = wolfSSL_get_error(ssl, ec);
+        print_error("connect failed %d",err);
     }
 
-    const char *data = "hello";
+    const char* data = "hello";
 
-    if (wolfSSL_write(ssl, data, strlen(data)) != (int)strlen(data))
-    {
+    if (wolfSSL_write(ssl, data, strlen(data)) != (int)strlen(data)) {
         print_error("failed to write data to connection");
     }
 
     uint8_t buffer[42];
-    if (wolfSSL_read(ssl, buffer, sizeof(buffer)) != (int)strlen(data))
-    {
+    if (wolfSSL_read(ssl, buffer, sizeof(buffer)) != (int)strlen(data)) {
         print_error("wrong amount of bytes read");
     }
 
     close(fd);
     shutdown(fd, SHUT_RDWR);
     printf("test done\n");
+
 }
 
 int main()
 {
     wolfSSL_Init();
-    ChangeToWolfRoot();
     client_test();
     wolfSSL_Cleanup();
 }
 
 #else
-int main()
-{
+int main() {
     printf("missing required configuration options\n");
 }
 #endif

@@ -1,0 +1,16 @@
+# vim:ft=automake
+# included from Top Level Makefile.am
+# All paths should be given relative to the root
+
+
+if BUILD_EXAMPLE_SERVERS
+noinst_PROGRAMS += examples/nabto_embedded_server/nabto_embedded_server
+noinst_HEADERS += examples/nabto_embedded_server/nabto_embedded_server.h
+examples_nabto_embedded_server_nabto_embedded_server_SOURCES      = examples/nabto_embedded_server/nabto_embedded_server.c
+examples_nabto_embedded_server_nabto_embedded_server_LDADD        = src/libwolfssl.la $(LIB_STATIC_ADD) $(WOLFSENTRY_LIB)
+examples_nabto_embedded_server_nabto_embedded_server_DEPENDENCIES = src/libwolfssl.la
+examples_nabto_embedded_server_nabto_embedded_server_CFLAGS = $(WOLFSENTRY_INCLUDE) $(AM_CFLAGS)
+endif
+
+dist_example_DATA+= examples/nabto_embedded_server/nabto_embedded_server.c
+DISTCLEANFILES+= examples/nabto_embedded_server/.libs/nabto_embedded_server
