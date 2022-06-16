@@ -81,8 +81,8 @@ static void server_test()
     method = wolfTLSv1_2_server_method();
     WOLFSSL_CTX *ctx = wolfSSL_CTX_new(method);
 
-
-    const char *cipherList = "TLS_ECDHE_ECDSA_WITH_AES_128_CCM";
+    // our protocol uses TLS_ECDHE_ECDSA_WITH_AES_128_CCM
+    const char *cipherList = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256";
     if (wolfSSL_CTX_set_cipher_list(ctx, cipherList) != WOLFSSL_SUCCESS)
     {
         print_error("server can't set custom cipher list");

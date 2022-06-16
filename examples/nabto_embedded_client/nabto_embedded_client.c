@@ -32,10 +32,11 @@ void client_test()
     wolfSSL_Debugging_ON();
 
     const char *caCert = caEccCertFile;
-    WOLFSSL_METHOD *method = wolfTLSv1_2_client_method();
+    WOLFSSL_METHOD *method = wolfDTLSv1_2_client_method();
     WOLFSSL_CTX *ctx = wolfSSL_CTX_new(method);
 
-    const char *cipherList = "TLS_ECDHE_ECDSA_WITH_AES_128_CCM";
+    // our protocol uses TLS_ECDHE_ECDSA_WITH_AES_128_CCM
+    const char *cipherList = "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256";
     if (wolfSSL_CTX_set_cipher_list(ctx, cipherList) != WOLFSSL_SUCCESS)
     {
         print_error("server can't set custom cipher list");
@@ -110,7 +111,7 @@ void client_test()
         print_error("cannot set alpns");
     }
 
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
 
     struct sockaddr_in sa;
     memset(&sa, 0, sizeof(sa));
@@ -119,10 +120,14 @@ void client_test()
     sa.sin_addr.s_addr = inet_addr(ip);
     sa.sin_port = htons(port);
 
-    if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
-    {
-        print_error("connect failed");
-    }
+    wolfSSL_dtls_set_peer(ssl, &sa, sizeof(sa));
+
+    // if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
+    // {
+    //     print_error("connect failed");
+    // }
+
+
 
     if (wolfSSL_set_fd(ssl, fd) != WOLFSSL_SUCCESS)
     {
