@@ -107,7 +107,7 @@ static void server_test()
         print_error("cannot load private key");
     }
 
-    wolfSSL_CTX_set_verify(ctx, (SSL_VERIFY_PEER | WOLFSSL_VERIFY_FAIL_IF_NO_PEER_CERT), verify_callback);
+    wolfSSL_CTX_set_verify(ctx, (SSL_VERIFY_PEER), verify_callback);
 
     WOLFSSL *ssl = wolfSSL_new(ctx);
 
@@ -147,7 +147,11 @@ static void server_test()
 
     wolfSSL_set_fd(ssl, listenFd);
 
+    usleep(10000);
     wolfSSL_accept(ssl);
+    usleep(10000);
+
+
 
     // Get client fingerprint
     //WOLFSSL_X509 *peerCert = wolfSSL_get_peer_certificate(ssl);
@@ -163,11 +167,15 @@ static void server_test()
     {
         print_error("read from connectedion failed.");
     }
+    usleep(10000);
+
     int written = wolfSSL_write(ssl, buffer, len);
     if (written != len)
     {
         print_error("failed to write the right amount of bytes to the ssl connection");
     }
+
+    usleep(10000);
 
     // close(fd);
     // shutdown(fd,SHUT_RDWR);

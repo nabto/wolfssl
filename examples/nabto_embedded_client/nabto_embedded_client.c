@@ -18,16 +18,26 @@ static void print_error(const char *msg)
     exit(1);
 }
 
-void client_test(void);
-void logging_callback(const int logLevel, const char *const logMessage);
+static int wolfssl_send(WOLFSSL* ssl, char* buffer,
+                         int bufferSize, void* data);
+                         static int wolfssl_recv(WOLFSSL* ssl, char* buffer, int bufferSize, void* data);
+
+static void client_test(void);
+static void logging_callback(const int logLevel, const char *const logMessage);
 
 void logging_callback(const int logLevel, const char *const logMessage)
 {
     printf("%d: %s\n", logLevel, logMessage);
 }
 
+struct io_ctx {
+    int fd;
+    struct sockaddr_in peerAddr;
+};
+
 void client_test()
 {
+    struct io_ctx ioCtx;
     wolfSSL_SetLoggingCb(logging_callback);
     wolfSSL_Debugging_ON();
 
@@ -47,6 +57,10 @@ void client_test()
     {
         print_error("cannot load ca certificate");
     }
+
+    wolfSSL_SetIORecv(ctx, wolfssl_recv);
+    wolfSSL_SetIOSend(ctx, wolfssl_send);
+    //wolfSSL_SSLSetIOSend
 
     WOLFSSL *ssl = wolfSSL_new(ctx);
 
@@ -120,7 +134,13 @@ void client_test()
     sa.sin_addr.s_addr = inet_addr(ip);
     sa.sin_port = htons(port);
 
-    wolfSSL_dtls_set_peer(ssl, &sa, sizeof(sa));
+    ioCtx.fd = fd;
+    memcpy(&ioCtx.peerAddr, &sa, sizeof(struct sockaddr_in));
+
+    wolfSSL_SetIOReadCtx(ssl, &ioCtx);
+    wolfSSL_SetIOWriteCtx(ssl, &ioCtx);
+
+    //wolfSSL_dtls_set_peer(ssl, &sa, sizeof(sa));
 
     // if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0)
     // {
@@ -129,33 +149,93 @@ void client_test()
 
 
 
-    if (wolfSSL_set_fd(ssl, fd) != WOLFSSL_SUCCESS)
-    {
-        print_error("failed to set fd");
+    // if (wolfSSL_set_fd(ssl, fd) != WOLFSSL_SUCCESS)
+    // {
+    //    print_error("failed to set fd");
+    // }
+
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+        print_error("ERROR: failed to set non-blocking");
     }
 
-    if (wolfSSL_connect(ssl) != WOLFSSL_SUCCESS)
-    {
-        print_error("connect failed");
-    }
+    wolfSSL_dtls_set_using_nonblock(ssl, 1);
+
+    do {
+        ret = wolfSSL_connect(ssl);
+        if (ret == WOLFSSL_FATAL_ERROR) {
+            int err = wolfSSL_get_error(ssl, ret);
+            if (err == WOLFSSL_ERROR_WANT_READ || err == WOLFSSL_ERROR_WANT_WRITE) {
+                // try again
+            } else {
+                print_error("connect failed");
+            }
+        }
+        usleep(100000);
+    } while (ret != WOLFSSL_SUCCESS);
 
     const char *data = "hello";
 
-    if (wolfSSL_write(ssl, data, strlen(data)) != (int)strlen(data))
-    {
-        print_error("failed to write data to connection");
+    do {
+        ret = wolfSSL_write(ssl, data, strlen(data));
+    } while (ret <= 0);
+    if (ret != (int)strlen(data)) {
+        print_error("write failed");
     }
 
     uint8_t buffer[42];
-    if (wolfSSL_read(ssl, buffer, sizeof(buffer)) != (int)strlen(data))
-    {
-        print_error("wrong amount of bytes read");
+    do {
+        wolfSSL_read(ssl, buffer, sizeof(buffer));
+    } while (ret <= 0);
+    if (ret != (int)strlen(data)) {
+        print_error("read failed");
     }
 
     close(fd);
     shutdown(fd, SHUT_RDWR);
     printf("test done\n");
 }
+
+int wolfssl_send(WOLFSSL* ssl, char* buffer,
+                         int bufferSize, void* data)
+{
+    (void)ssl;
+    static int count = 0;
+    count++;
+    if (count%2 == 0) {
+        return WOLFSSL_CBIO_ERR_WANT_WRITE;
+    }
+    struct io_ctx* ctx = data;
+
+    int ret = sendto(ctx->fd, buffer, bufferSize, 0, (struct sockaddr*)&ctx->peerAddr, (socklen_t)sizeof(struct sockaddr_in));
+    return ret;
+}
+
+int wolfssl_recv(WOLFSSL* ssl, char* buffer, int bufferSize, void* data)
+{
+    (void)ssl;
+    struct io_ctx* ctx = data;
+    struct sockaddr_in addr;
+    socklen_t l = sizeof(struct sockaddr_in);
+    static int count = 0;
+    count++;
+    if (count %2 == 0) {
+        return WOLFSSL_CBIO_ERR_WANT_READ;
+    }
+
+    int ret = recvfrom(ctx->fd, buffer, bufferSize, 0, (struct sockaddr*)&addr, &l);
+    if (ret <= 0) {
+        if (errno = EWOULDBLOCK || errno == EAGAIN) {
+            return WOLFSSL_CBIO_ERR_WANT_READ;
+        } else {
+            print_error("somethind not ewouldblock happened");
+        }
+
+    } else {
+        return ret;
+    }
+}
+
+
 
 int main()
 {
@@ -164,6 +244,8 @@ int main()
     client_test();
     wolfSSL_Cleanup();
 }
+
+
 
 #else
 int main()
