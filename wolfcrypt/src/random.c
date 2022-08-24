@@ -161,6 +161,7 @@ int wc_RNG_GenerateByte(WC_RNG* rng, byte* b)
 #elif defined(WOLFSSL_ZEPHYR)
 #elif defined(WOLFSSL_TELIT_M2MB)
 #elif defined(WOLFSSL_SCE) && !defined(WOLFSSL_SCE_NO_TRNG)
+#elif defined(WOLFSSL_RENESAS_TSIP) || defined(WOLFSSL_RENESAS_TSIP_RANDOM)
 #elif defined(WOLFSSL_GETRANDOM)
     #include <errno.h>
     #include <sys/random.h>
@@ -2546,11 +2547,11 @@ int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
         return 0;
     }
 
-#elif defined(WOLFSSL_RENESAS_TSIP)
+#elif defined(WOLFSSL_RENESAS_TSIP) || defined(WOLFSSL_RENESAS_TSIP_RANDOM)
 #if defined(WOLFSSL_RENESA_TSIP_IAREWRX)
    #include "r_bsp/mcu/all/r_rx_compiler.h"
 #endif
-   #include "r_bsp/platform.h"
+   #include "platform.h"
     #include "r_tsip_rx_if.h"
 
     int wc_GenerateSeed(OS_Seed* os, byte* output, word32 sz)
