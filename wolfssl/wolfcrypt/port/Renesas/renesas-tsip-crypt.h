@@ -42,7 +42,7 @@
 #include <wolfssl/wolfcrypt/settings.h>
 
 #include <wolfssl/wolfcrypt/visibility.h>
-#include <wolfssl/wolfcrypt/ecc.h>
+//#include <wolfssl/wolfcrypt/ecc.h>
 #include <wolfssl/wolfcrypt/logging.h>
 
 #ifdef __cplusplus
@@ -471,6 +471,7 @@ WOLFSSL_LOCAL int wc_tsip_generateEncryptPreMasterSecret(
         byte*       out,
         word32*     outSz);
 
+struct ecc_key;
 WOLFSSL_LOCAL int wc_tsip_EccSharedSecret(
         struct WOLFSSL* ssl,
         struct ecc_key* otherKey,
