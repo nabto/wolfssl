@@ -572,6 +572,12 @@ WOLFSSL_LOCAL byte tsip_rootCAverified();
 
 WOLFSSL_LOCAL byte tsip_checkCA(word32 cmIdx);
 
+WOLFSSL_LOCAL int wc_tsip_tls_SelfSignedCertVerify(
+	    const uint8_t* cert,       uint32_t certSz,
+	    uint32_t      key_n_start, uint32_t key_n_len,
+	    uint32_t      key_e_start, uint32_t key_e_len,
+	    uint8_t*      tsip_encRsaKeyIndex);
+
 WOLFSSL_LOCAL int  wc_tsip_tls_RootCertVerify(
         const   byte* cert,   word32 cert_len,
         word32  key_n_start,  word32 key_n_len,

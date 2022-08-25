@@ -3159,6 +3159,76 @@ int wc_tsip_generateEncryptPreMasterSecret(
     return ret;
 }
 
+#if defined(WOLFSSL_RENESAS_TSIP_SELF_SIGNED_CERT)
+
+#include "wolfssl_tsip_rsapss.h"
+
+int wc_tsip_tls_SelfSignedCertVerify(
+	        const uint8_t* cert,       uint32_t certSz,
+	        uint32_t      key_n_start, uint32_t key_n_len,
+	        uint32_t      key_e_start, uint32_t key_e_len,
+	        uint8_t*      tsip_encRsaKeyIndex)
+	{
+
+
+	int ret;
+
+	// signature which is used by tsip to validate the certificate
+	uint8_t signature[256];
+	ret = wolfssl_tsip_rsapss_signature_generate(cert, certSz, signature, sizeof(signature));
+
+
+    WOLFSSL_ENTER("wc_tsip_tls_RootCertVerify");
+
+    if (cert == NULL)
+      return BAD_FUNC_ARG;
+
+
+    if ((ret = tsip_hw_lock()) == 0) {
+
+    #if (WOLFSSL_RENESAS_TSIP_VER>=109)
+        ret = R_TSIP_TlsRootCertificateVerification(
+            g_user_key_info.encrypted_user_tls_key_type,
+            (uint8_t*)cert,             /* CA cert */
+            (uint32_t)certSz,         /* length of CA cert */
+            key_n_start,                /* Byte position of public key */
+            (key_n_start + key_n_len),
+            key_e_start,
+            (key_e_start + key_e_len),
+            (uint8_t*)signature,      /* RSA 2048 PSS with SHA256 */
+            (uint32_t*)tsip_encRsaKeyIndex    /* RSA-2048 public key 560 bytes */
+        );
+    #else /* WOLFSSL_RENESAS_TSIP_VER < 109 */
+        ret = R_TSIP_TlsRootCertificateVerification(
+            (uint8_t*)cert,/* CA cert */
+            (uint32_t)certSz,/* length of CA cert */
+            key_n_start, /* Byte position of public key */
+            (key_n_start + key_n_len),
+            key_e_start,
+            (key_e_start + key_e_len),
+            (uint8_t*)signature,/* "RSA 2048 PSS with SHA256" */
+            /* RSA-2048 public key used by RSA-2048 PSS with SHA256. 560 Bytes */
+            tsip_encRsaKeyIndex
+        );
+    #endif
+
+        if (ret != TSIP_SUCCESS) {
+            WOLFSSL_MSG(" R_TSIP_TlsRootCertificateVerification failed for a self signed certificate");
+            ret = -1;
+        }
+
+
+        tsip_hw_unlock();
+    }
+    else {
+        WOLFSSL_MSG(" hw lock failed ");
+    }
+    WOLFSSL_LEAVE("wc_tsip_tls_SelfSignedCertVerify", ret);
+    return ret;
+}
+#endif
+
+
 
 /* Certificate verification by TSIP */
 int wc_tsip_tls_CertVerify(

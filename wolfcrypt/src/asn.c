@@ -19737,9 +19737,13 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
     /* check if we can use TSIP for cert verification */
     /* if the ca is verified as tsip root ca.         */
     /* TSIP can only handle 2048 bits(256 byte) key.  */
-    if (cert->ca && Renesas_cmn_checkCA(cert->ca->cm_idx) != 0 &&
+    if ((cert->ca && Renesas_cmn_checkCA(cert->ca->cm_idx) != 0 &&
         (cert->sigCtx.CertAtt.pubkey_n_len == 256 ||
-         cert->sigCtx.CertAtt.curve_id == ECC_SECP256R1)) {
+         cert->sigCtx.CertAtt.curve_id == ECC_SECP256R1))
+#if defined(WOLFSSL_RENESAS_TSIP_SELF_SIGNED_CERT)
+	|| (type != CA_TYPE && cert->selfSigned &&  cert->sigCtx.CertAtt.curve_id == ECC_SECP256R1)
+#endif
+    ) {
 
         /* assign memory to encrypted tsip Rsa key index */
         if (!cert->sce_tsip_encRsaKeyIdx)
@@ -19767,6 +19771,22 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
 
 #else
     sce_tsip_encRsaKeyIdx = NULL;
+#endif
+
+#if defined(WOLFSSL_RENESAS_TSIP_SELF_SIGNED_CERT)
+#include <wolfssl/wolfcrypt/port/Renesas/renesas-tsip-crypt.h>
+	if (type == CERT_TYPE && cert->selfSigned && sce_tsip_encRsaKeyIdx != NULL) {
+		ret = wc_tsip_tls_SelfSignedCertVerify(
+				cert->source, cert->maxIdx,
+				cert->sigCtx.CertAtt.pubkey_n_start, cert->sigCtx.CertAtt.pubkey_n_len - 1,
+				cert->sigCtx.CertAtt.pubkey_e_start, cert->sigCtx.CertAtt.pubkey_e_len - 1,
+				sce_tsip_encRsaKeyIdx);
+
+		if (ret != 0) {
+			WOLFSSL_MSG("Confirm signature failed");
+			return ret;
+		}
+	}
 #endif
 
     if (verify != NO_VERIFY && type != CA_TYPE && type != TRUSTED_PEER_TYPE) {
