@@ -64,7 +64,7 @@ int wc_CryptoCb_CryptInitRenesasCmn(WOLFSSL* ssl, void* ctx);
 void wc_CryptoCb_CleanupRenesasCmn(int* id);
 int wc_Renesas_cmn_RootCertVerify(const byte* cert, word32 cert_len, 
         word32 key_n_start, word32 key_n_len, word32 key_e_start, 
-        word32 key_e_len, word32 cm_row);
+        word32 key_e_len, struct Signer* signer);
 WOLFSSL_LOCAL int Renesas_cmn_Cleanup(WOLFSSL* ssl);
-WOLFSSL_LOCAL byte Renesas_cmn_checkCA(word32 cmIdx);
+WOLFSSL_LOCAL byte Renesas_cmn_checkCA(Signer* signer);
 #endif /* __RENESAS_CMN_H__ */

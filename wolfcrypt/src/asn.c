@@ -13817,7 +13817,7 @@ static int HashForSignature(const byte* buf, word32 bufSz, word32 sigOID,
 static int ConfirmSignature(SignatureCtx* sigCtx,
     const byte* buf, word32 bufSz,
     const byte* key, word32 keySz, word32 keyOID,
-    const byte* sig, word32 sigSz, word32 sigOID, byte* rsaKeyIdx)
+    const byte* sig, word32 sigSz, word32 sigOID, byte* signerRsaKeyIdx, byte* rsaKeyIdx)
 {
     int ret = 0;
 
@@ -13842,6 +13842,7 @@ static int ConfirmSignature(SignatureCtx* sigCtx,
     certatt = (CertAttribute*)&sigCtx->CertAtt;
     #endif
     if(certatt) {
+        certatt->tsip_signer_encRsaKeyIdx = signerRsaKeyIdx;
         certatt->keyIndex = rsaKeyIdx;
         certatt->cert = buf;
         certatt->certSz = bufSz;
@@ -19081,13 +19082,13 @@ static int CheckCertSignature_ex(const byte* cert, word32 certSz, void* heap,
             ret = ConfirmSignature(sigCtx, cert + tbsCertIdx,
                                sigIndex - tbsCertIdx,
                                pubKey, pubKeySz, pubKeyOID,
-                               cert + idx, len, signatureOID, NULL);
+                               cert + idx, len, signatureOID, NULL, NULL);
         }
         else {
             ret = ConfirmSignature(sigCtx, cert + tbsCertIdx,
                                sigIndex - tbsCertIdx,
                                ca->publicKey, ca->pubKeySize, ca->keyOID,
-                               cert + idx, len, signatureOID, NULL);
+                               cert + idx, len, signatureOID, NULL, NULL);
         }
         if (ret != 0) {
             WOLFSSL_MSG("Confirm signature failed");
@@ -19245,7 +19246,7 @@ static int CheckCertSignature_ex(const byte* cert, word32 certSz, void* heap,
     if (ret == 0) {
         /* Check signature. */
         ret = ConfirmSignature(sigCtx, tbs, tbsSz, pubKey, pubKeySz, pubKeyOID,
-                sig, sigSz, sigOID, NULL);
+                sig, sigSz, sigOID, NULL, NULL);
         if (ret != 0) {
             WOLFSSL_MSG("Confirm signature failed");
         }
@@ -19737,7 +19738,7 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
     /* check if we can use TSIP for cert verification */
     /* if the ca is verified as tsip root ca.         */
     /* TSIP can only handle 2048 bits(256 byte) key.  */
-    if ((cert->ca && Renesas_cmn_checkCA(cert->ca->cm_idx) != 0 &&
+    if ((cert->ca && Renesas_cmn_checkCA(cert->ca) != 0 &&
         (cert->sigCtx.CertAtt.pubkey_n_len == 256 ||
          cert->sigCtx.CertAtt.curve_id == ECC_SECP256R1))
 #if defined(WOLFSSL_RENESAS_TSIP_SELF_SIGNED_CERT)
@@ -19755,7 +19756,7 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
     } else {
         if (cert->ca) {
             /* TSIP isn't usable */
-            if (Renesas_cmn_checkCA(cert->ca->cm_idx) == 0)
+            if (Renesas_cmn_checkCA(cert->ca) == 0)
                 WOLFSSL_MSG("SCE-TSIP isn't usable because the ca isn't verified "
                             "by TSIP.");
             else if (cert->sigCtx.CertAtt.pubkey_n_len != 256)
@@ -19800,6 +19801,7 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
                         cert->ca->publicKey, cert->ca->pubKeySize,
                         cert->ca->keyOID, cert->signature,
                         cert->sigLength, cert->signatureOID,
+                        cert->ca->sce_tsip_encRsaKeyIdx,
                         sce_tsip_encRsaKeyIdx)) != 0) {
                     if (ret != WC_PENDING_E) {
                         WOLFSSL_MSG("Confirm signature failed");
@@ -19827,6 +19829,7 @@ int ParseCertRelative(DecodedCert* cert, int type, int verify, void* cm)
                     cert->publicKey, cert->pubKeySize,
                     cert->keyOID, cert->signature,
                     cert->sigLength, cert->signatureOID,
+                    NULL,
                     sce_tsip_encRsaKeyIdx)) != 0) {
                 if (ret != WC_PENDING_E) {
                     WOLFSSL_MSG("Confirm signature failed");
@@ -19893,6 +19896,9 @@ void FreeSigner(Signer* signer, void* heap)
 #endif
 #ifdef WOLFSSL_SIGNER_DER_CERT
     FreeDer(&signer->derCert);
+#endif
+#if defined(WOLFSSL_RENESAS_TSIP_TLS) || defined(WOLFSSL_RENESAS_SCEPROTECT)
+    XFREE(signer->sce_tsip_encRsaKeyIdx, heap, DYNAMIC_TYPE_RSA);
 #endif
     XFREE(signer, heap, DYNAMIC_TYPE_SIGNER);
     (void)signer;
@@ -31423,7 +31429,7 @@ static int DecodeBasicOcspResponse(byte* source, word32* ioIndex,
                 &cert->sigCtx,
                 resp->response, resp->responseSz,
                 cert->publicKey, cert->pubKeySize, cert->keyOID,
-                resp->sig, resp->sigSz, resp->sigOID, NULL);
+                resp->sig, resp->sigSz, resp->sigOID, NULL, NULL);
 
             if (ret != 0) {
                 WOLFSSL_MSG("\tOCSP Confirm signature failed");
@@ -31460,7 +31466,7 @@ static int DecodeBasicOcspResponse(byte* source, word32* ioIndex,
             /* ConfirmSignature is blocking here */
             sigValid = ConfirmSignature(&sigCtx, resp->response,
                 resp->responseSz, ca->publicKey, ca->pubKeySize, ca->keyOID,
-                                resp->sig, resp->sigSz, resp->sigOID, NULL);
+                                resp->sig, resp->sigSz, resp->sigOID, NULL, NULL);
         }
         if (ca == NULL || sigValid != 0) {
             WOLFSSL_MSG("\tOCSP Confirm signature failed");
@@ -31550,7 +31556,7 @@ static int DecodeBasicOcspResponse(byte* source, word32* ioIndex,
         /* Check the signature of the response. */
         ret = ConfirmSignature(&cert->sigCtx, resp->response, resp->responseSz,
             cert->publicKey, cert->pubKeySize, cert->keyOID, resp->sig,
-            resp->sigSz, resp->sigOID, NULL);
+            resp->sigSz, resp->sigOID, NULL, NULL);
         if (ret != 0) {
             WOLFSSL_MSG("\tOCSP Confirm signature failed");
             ret = ASN_OCSP_CONFIRM_E;
@@ -31580,7 +31586,7 @@ static int DecodeBasicOcspResponse(byte* source, word32* ioIndex,
             /* Check the signature of the response CA public key. */
             sigValid = ConfirmSignature(&sigCtx, resp->response,
                 resp->responseSz, ca->publicKey, ca->pubKeySize, ca->keyOID,
-                resp->sig, resp->sigSz, resp->sigOID, NULL);
+                resp->sig, resp->sigSz, resp->sigOID, NULL, NULL);
         }
         if ((ca == NULL) || (sigValid != 0)) {
             /* Didn't find certificate or signature verificate failed. */
@@ -32556,7 +32562,7 @@ int VerifyCRL_Signature(SignatureCtx* sigCtx, const byte* toBeSigned,
     InitSignatureCtx(sigCtx, heap, INVALID_DEVID);
     if (ConfirmSignature(sigCtx, toBeSigned, tbsSz, ca->publicKey,
                          ca->pubKeySize, ca->keyOID, signature, sigSz,
-                         signatureOID, NULL) != 0) {
+                         signatureOID, NULL, NULL) != 0) {
         WOLFSSL_MSG("CRL Confirm signature failed");
         return ASN_CRL_CONFIRM_E;
     }

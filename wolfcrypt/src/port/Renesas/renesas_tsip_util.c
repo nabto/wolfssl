@@ -72,10 +72,7 @@ struct WOLFSSL_HEAP_HINT*  tsip_heap_hint = NULL;
 
 /* tsip only keep one encrypted ca public key */
 #if defined(WOLFSSL_RENESAS_TSIP_TLS)
-static uint32_t     g_encrypted_publicCA_key[R_TSIP_SINST_WORD_SIZE];
 
-/* index of CM table. must be global since renesas_common access it. */
-extern uint32_t     g_CAscm_Idx;
 
 #if defined(WOLFSSL_TLS13)
 /* The server certificate verification label. */
@@ -2442,7 +2439,6 @@ WOLFSSL_LOCAL int tsip_Open(void)
                     WOLFSSL_MSG("R_TSIP_(Re)Open: NG");
                 }
                     /* init vars */
-                g_CAscm_Idx = (uint32_t)-1;
             }
         }
 
@@ -2476,7 +2472,6 @@ WOLFSSL_LOCAL int tsip_Open(void)
                     WOLFSSL_MSG("R_TSIP_(Re)Open failed");
                 }
                  /* init vars */
-                g_CAscm_Idx = (uint32_t)-1;
             }
         }
 #else
@@ -2504,9 +2499,6 @@ WOLFSSL_LOCAL void tsip_Close(void)
     if ((ret = tsip_hw_lock()) == 0) {
         /* close TSIP */
         ret = R_TSIP_Close();
-#if defined(WOLFSSL_RENESAS_TSIP_TLS)
-        g_CAscm_Idx = (uint32_t)-1;
-#endif
         /* unlock hw */
         tsip_hw_unlock();
         if (ret != TSIP_SUCCESS) {
@@ -3178,7 +3170,7 @@ int wc_tsip_tls_SelfSignedCertVerify(
 	ret = wolfssl_tsip_rsapss_signature_generate(cert, certSz, signature, sizeof(signature));
 
 
-    WOLFSSL_ENTER("wc_tsip_tls_RootCertVerify");
+    WOLFSSL_ENTER("wc_tsip_tls_SelfSignedCertVerify");
 
     if (cert == NULL)
       return BAD_FUNC_ARG;
@@ -3236,6 +3228,7 @@ int wc_tsip_tls_CertVerify(
         const uint8_t* signature,  uint32_t sigSz,
         uint32_t      key_n_start, uint32_t key_n_len,
         uint32_t      key_e_start, uint32_t key_e_len,
+        uint8_t*      tsip_signer_encRsaKeyIndex,
         uint8_t*      tsip_encRsaKeyIndex)
 {
     int ret;
@@ -3305,7 +3298,7 @@ int wc_tsip_tls_CertVerify(
 
         ret = R_TSIP_TlsCertificateVerification(
             g_user_key_info.encrypted_user_tls_key_type,
-            (uint32_t*)g_encrypted_publicCA_key,/* encrypted public key  */
+            (uint32_t*)tsip_signer_encRsaKeyIndex, /* encrypted public key  */
             (uint8_t*)cert,                    /* certificate der        */
             certSz,                            /* length of der          */
             (uint8_t*)pSig,                    /* sign data by RSA PSS   */
@@ -3319,7 +3312,7 @@ int wc_tsip_tls_CertVerify(
         #elif (WOLFSSL_RENESAS_TSIP_VER>=106)
 
         ret = R_TSIP_TlsCertificateVerification(
-            (uint32_t*)g_encrypted_publicCA_key,/* encrypted public key  */
+            (uint32_t*)tsip_signer_encRsaKeyIndex,/* encrypted public key  */
             (uint8_t*)cert,                    /* certificate der        */
             certSz,                            /* length of der          */
             (uint8_t*)pSig,                    /* sign data by RSA PSS   */
@@ -3350,11 +3343,13 @@ int wc_tsip_tls_RootCertVerify(
         const byte* cert,           word32 cert_len,
         word32      key_n_start,    word32 key_n_len,
         word32      key_e_start,    word32 key_e_len,
-        word32      cm_row)
+        Signer*     signer)
 {
     int ret;
     /* call to generate encrypted public key for certificate verification */
     uint8_t *signature = (uint8_t*)ca_cert_sig;
+
+    uint32_t encrypted_publicCA_key[R_TSIP_SINST_WORD_SIZE];
 
     WOLFSSL_ENTER("wc_tsip_tls_RootCertVerify");
 
@@ -3378,7 +3373,7 @@ int wc_tsip_tls_RootCertVerify(
             key_e_start,
             (key_e_start + key_e_len),
             (uint8_t*)ca_cert_sig,      /* RSA 2048 PSS with SHA256 */
-            g_encrypted_publicCA_key    /* RSA-2048 public key 560 bytes */
+            encrypted_publicCA_key    /* RSA-2048 public key 560 bytes */
         );
     #else /* WOLFSSL_RENESAS_TSIP_VER < 109 */
         ret = R_TSIP_TlsRootCertificateVerification(
@@ -3390,7 +3385,7 @@ int wc_tsip_tls_RootCertVerify(
             (key_e_start + key_e_len),
             (uint8_t*)ca_cert_sig,/* "RSA 2048 PSS with SHA256" */
             /* RSA-2048 public key used by RSA-2048 PSS with SHA256. 560 Bytes */
-            g_encrypted_publicCA_key
+            encrypted_publicCA_key
         );
     #endif
 
@@ -3398,7 +3393,13 @@ int wc_tsip_tls_RootCertVerify(
             WOLFSSL_MSG(" R_TSIP_TlsRootCertificateVerification failed");
         }
         else {
-            g_CAscm_Idx = cm_row;
+            signer->sce_tsip_encRsaKeyIdx = (uint32_t*)XMALLOC(TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY,
+                             cert->heap, DYNAMIC_TYPE_RSA);
+            if (signer->sce_tsip_encRsaKeyIdx != NULL) {
+                memcpy(signer->sce_tsip_encRsaKeyIdx, encrypted_publicCA_key, TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY);
+            } else {
+                ret = MEMORY_ERROR;
+            }
         }
 
         tsip_hw_unlock();

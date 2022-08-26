@@ -139,6 +139,7 @@ typedef wolfssl_TSIP_Hash wc_Sha;
 
 struct WOLFSSL;
 struct KeyShareEntry;
+struct Signer;
 
 /*  MsgBag stands for message bag and acts as a buffer for holding plain text
  *  handshake messages exchanged between client and server.
@@ -582,13 +583,14 @@ WOLFSSL_LOCAL int  wc_tsip_tls_RootCertVerify(
         const   byte* cert,   word32 cert_len,
         word32  key_n_start,  word32 key_n_len,
         word32  key_e_start,  word32 key_e_len,
-        word32  cm_row);
+        struct Signer* signer);
 
 WOLFSSL_LOCAL int  wc_tsip_tls_CertVerify(
         const   uint8_t* cert,      uint32_t certSz,
         const   uint8_t* signature, uint32_t sigSz,
         uint32_t  key_n_start,      uint32_t key_n_len,
         uint32_t  key_e_start,      uint32_t key_e_len,
+        uint8_t*  tsip_signer_encRsaKeyIdx,
         uint8_t*  tsip_encRsaKeyIdx);
 
 WOLFSSL_LOCAL int  wc_tsip_generatePremasterSecret(

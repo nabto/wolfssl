@@ -5046,7 +5046,7 @@ int AddTrustedPeer(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int verify)
 /* owns der, internal now uses too */
 /* type flag ids from user or from chain received during verify
    don't allow chain ones to be added w/o isCA extension */
-int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify)
+int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify, uint8_t* tsip_encRsaKeyIdx)
 {
     int         ret;
     Signer*     signer = NULL;
@@ -5177,6 +5177,19 @@ int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify)
     if (ret == 0 && signer != NULL) {
         XMEMCPY(signer->derCert->buffer, der->buffer, der->length);
     #endif
+    #if defined(WOLFSSL_RENESAS_TSIP_TLS) || defined(WOLFSSL_RENESAS_SCEPROTECT)
+        if (tsip_encRsaKeyIdx) {
+            signer->sce_tsip_encRsaKeyIdx = XMALLOC(TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY,
+                             cm->heap, DYNAMIC_TYPE_RSA);
+            if (signer->sce_tsip_encRsaKeyIdx != NULL) {
+                XMEMCPY(signer->sce_tsip_encRsaKeyIdx, tsip_encRsaKeyIdx, TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY);
+            } else {
+                ret = MEMORY_ERROR;
+            }
+        }
+    }
+    if (ret == 0 && signer != NULL) {
+    #endif
         signer->keyOID         = cert->keyOID;
         if (cert->pubKeyStored) {
             signer->publicKey      = cert->publicKey;
@@ -5240,14 +5253,13 @@ int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify)
     /* Therefore, it doesn't need to call TSIP again if there is already   */
     /* verified CA.                                                        */
     if ( ret == 0 && signer != NULL ) {
-        signer->cm_idx = row;
         if (type == WOLFSSL_USER_CA) {
             if ((ret = wc_Renesas_cmn_RootCertVerify(cert->source, cert->maxIdx,
                  cert->sigCtx.CertAtt.pubkey_n_start,
                  cert->sigCtx.CertAtt.pubkey_n_len - 1,
                  cert->sigCtx.CertAtt.pubkey_e_start,
-                cert->sigCtx.CertAtt.pubkey_e_len - 1,
-                 row/* cm index */))
+                 cert->sigCtx.CertAtt.pubkey_e_len - 1,
+                 signer))
                 < 0)
                 WOLFSSL_MSG("Renesas_RootCertVerify() failed");
             else
@@ -5674,7 +5686,7 @@ static int ProcessUserChain(WOLFSSL_CTX* ctx, const unsigned char* buff,
                 /* add CA's to certificate manager */
                 if (ret == 0 && type == CA_TYPE) {
                     /* verify CA unless user set to no verify */
-                    ret = AddCA(ctx->cm, &part, WOLFSSL_USER_CA, verify);
+                    ret = AddCA(ctx->cm, &part, WOLFSSL_USER_CA, verify, NULL);
                     if (ret == WOLFSSL_SUCCESS) {
                         ret = 0; /* converted success case */
                     }
@@ -6262,7 +6274,7 @@ int ProcessBuffer(WOLFSSL_CTX* ctx, const unsigned char* buff,
             return BAD_FUNC_ARG;
         }
         /* verify CA unless user set to no verify */
-        ret = AddCA(ctx->cm, &der, WOLFSSL_USER_CA, verify);
+        ret = AddCA(ctx->cm, &der, WOLFSSL_USER_CA, verify, NULL);
         done = 1;
     }
 #ifdef WOLFSSL_TRUST_PEER_CERT
@@ -23489,7 +23501,7 @@ long wolfSSL_CTX_add_extra_chain_cert(WOLFSSL_CTX* ctx, WOLFSSL_X509* x509)
         }
         XMEMCPY(derBuffer->buffer, der, derSz);
         ret = AddCA(ctx->cm, &derBuffer, WOLFSSL_USER_CA,
-            GET_VERIFY_SETTING_CTX(ctx));
+            GET_VERIFY_SETTING_CTX(ctx), NULL);
         if (ret != WOLFSSL_SUCCESS) {
             WOLFSSL_LEAVE("wolfSSL_CTX_add_extra_chain_cert", ret);
             return WOLFSSL_FAILURE;

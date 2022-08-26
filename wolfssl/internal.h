@@ -3197,7 +3197,7 @@ int ProcessOldClientHello(WOLFSSL* ssl, const byte* input, word32* inOutIdx,
 
 #ifndef NO_CERTS
     WOLFSSL_LOCAL
-    int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify);
+    int AddCA(WOLFSSL_CERT_MANAGER* cm, DerBuffer** pDer, int type, int verify, uint8_t* tsip_encRsaKeyIdx);
     WOLFSSL_LOCAL
     int AlreadySigner(WOLFSSL_CERT_MANAGER* cm, byte* hash);
 #ifdef WOLFSSL_TRUST_PEER_CERT

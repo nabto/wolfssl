@@ -37,7 +37,7 @@
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #include <wolfssl/wolfcrypt/logging.h>
 
-uint32_t   g_CAscm_Idx = (uint32_t)-1; /* index of CM table    */
+
 static int gdevId = 7890;           /* initial dev Id for Crypt Callback */
 
 #ifdef WOLF_CRYPTO_CB
@@ -412,20 +412,12 @@ void wc_CryptoCb_CleanupRenesasCmn(int* id)
  * cmdIdx : ca index
  * return 1 can be used, otherwise 0
  */
-WOLFSSL_LOCAL byte Renesas_cmn_checkCA(word32 cmIdx)
+WOLFSSL_LOCAL byte Renesas_cmn_checkCA(Signer* signer)
 {
     WOLFSSL_ENTER("Renesas_cmn_checkCA");
-    return (cmIdx == g_CAscm_Idx? 1:0);
+    return (signer->sce_tsip_encRsaKeyIdx != NULL ? 1:0);
 }
 
-/* check if the root CA has been verified by TSIP/SCE,
- * and it exists in the CM table.
- */
-static byte sce_tsip_rootCAverified(void)
-{
-    WOLFSSL_ENTER("sce_tsip_rootCAverified");
-    return (g_CAscm_Idx != (uint32_t)-1 ? 1:0);
-}
 /* Renesas Security Library Common Callback
  * Callback for Rsa verify
  *
@@ -540,17 +532,17 @@ WOLFSSL_LOCAL int Renesas_cmn_EccVerify(WOLFSSL* ssl, const unsigned char* sig,
  * return FSP_SUCCESS(0) on success, otherwise FSP/TSIP error code
  */
 int wc_Renesas_cmn_RootCertVerify(const byte* cert, word32 cert_len, word32 key_n_start,
-        word32 key_n_len, word32 key_e_start, word32 key_e_len, word32 cm_row)
+        word32 key_n_len, word32 key_e_start, word32 key_e_len, Signer* signer)
 {
     int ret;
 
     WOLFSSL_ENTER("wc_Renesas_cmn_RootCertVerify");
 
-    if (sce_tsip_rootCAverified() == 0) {
+    if (signer->sce_tsip_encRsaKeyIdx == NULL) {
 
     #if defined(WOLFSSL_RENESAS_TSIP_TLS)
         ret = wc_tsip_tls_RootCertVerify(cert, cert_len, key_n_start,
-                key_n_len, key_e_start, key_e_len, cm_row);
+                key_n_len, key_e_start, key_e_len, signer);
 
     #elif defined(WOLFSSL_RENESAS_SCEPROTECT)
 
@@ -1020,6 +1012,7 @@ WOLFSSL_LOCAL int Renesas_cmn_SigPkCbRsaVerify(unsigned char* sig,
                                  CertAtt->pubkey_n_len - 1,
                                  CertAtt->pubkey_e_start - CertAtt->certBegin,
                                  CertAtt->pubkey_e_len -1,
+                                 (uint8_t*)CertAtt->tsip_signer_encRsaKeyIdx,
                                  (uint8_t*)CertAtt->keyIndex);
         if (ret == 0) {
             CertAtt->verifyByTSIP_SCE = 1;
@@ -1039,6 +1032,7 @@ WOLFSSL_LOCAL int Renesas_cmn_SigPkCbRsaVerify(unsigned char* sig,
                                  CertAtt->pubkey_n_len - 1,
                                  CertAtt->pubkey_e_start - CertAtt->certBegin,
                                  CertAtt->pubkey_e_len -1,
+                                 (uint8_t*)CertAtt->tsip_signer_encRsaKeyIdx,
                                  (uint8_t*)CertAtt->keyIndex);
         if (ret == 0) {
             CertAtt->verifyByTSIP_SCE = 1;
@@ -1104,6 +1098,7 @@ WOLFSSL_LOCAL int Renesas_cmn_SigPkCbEccVerify(const unsigned char* sig,
                                  CertAtt->pubkey_n_len - 1,
                                  CertAtt->pubkey_e_start - CertAtt->certBegin,
                                  CertAtt->pubkey_e_len -1,
+                                 (uint8_t*)CertAtt->tsip_signer_encRsaKeyIdx,
                                  (uint8_t*)CertAtt->keyIndex);
         if (ret == 0) {
             CertAtt->verifyByTSIP_SCE = 1;
@@ -1123,6 +1118,7 @@ WOLFSSL_LOCAL int Renesas_cmn_SigPkCbEccVerify(const unsigned char* sig,
                                  CertAtt->pubkey_n_len - 1,
                                  CertAtt->pubkey_e_start - CertAtt->certBegin,
                                  CertAtt->pubkey_e_len -1,
+                                 (uint8_t*)CertAtt->tsip_signer_encRsaKeyIdx,
                                  (uint8_t*)CertAtt->keyIndex);
         if (ret == 0) {
             CertAtt->verifyByTSIP_SCE = 1;

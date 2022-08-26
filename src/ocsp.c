@@ -614,7 +614,7 @@ WOLFSSL_OCSP_CERTID* wolfSSL_OCSP_cert_to_id(
         /* AddCA() frees the buffer. */
         XMEMCPY(derCert->buffer, issuer->derCert->buffer,
                 issuer->derCert->length);
-        ret = AddCA(cm, &derCert, WOLFSSL_USER_CA, 1);
+        ret = AddCA(cm, &derCert, WOLFSSL_USER_CA, 1, NULL);
         if (ret != WOLFSSL_SUCCESS) {
             wolfSSL_CertManagerFree(cm);
             return NULL;

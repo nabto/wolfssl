@@ -1353,6 +1353,7 @@ typedef struct tagCertAttribute {
         int curve_id;
         const byte* cert;
         word32 certSz;
+        const byte* tsip_signer_encRsaKeyIdx;
         const byte* keyIndex;
   } CertAttribute;
 #endif
@@ -1857,7 +1858,8 @@ struct Signer {
     DerBuffer* derCert;
 #endif
 #if defined(WOLFSSL_RENESAS_TSIP_TLS) || defined(WOLFSSL_RENESAS_SCEPROTECT)
-    word32 cm_idx;
+    // if the certificate is not verified by TSIP or SCE the key is NULL.
+    byte* sce_tsip_encRsaKeyIdx;
 #endif
     Signer* next;
 };
