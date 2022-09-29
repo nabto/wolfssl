@@ -3393,8 +3393,8 @@ int wc_tsip_tls_RootCertVerify(
             WOLFSSL_MSG(" R_TSIP_TlsRootCertificateVerification failed");
         }
         else {
-            signer->sce_tsip_encRsaKeyIdx = (uint32_t*)XMALLOC(TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY,
-                             cert->heap, DYNAMIC_TYPE_RSA);
+            signer->sce_tsip_encRsaKeyIdx = (uint8_t*)(uint32_t*)XMALLOC(TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY,
+                             NULL, DYNAMIC_TYPE_RSA);
             if (signer->sce_tsip_encRsaKeyIdx != NULL) {
                 memcpy(signer->sce_tsip_encRsaKeyIdx, encrypted_publicCA_key, TSIP_TLS_ENCPUBKEY_SZ_BY_CERTVRFY);
             } else {
